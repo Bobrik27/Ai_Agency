@@ -1,0 +1,21 @@
+# Секреты (НИКОГДА не убирать эту строку)
+.env
+.env.local
+
+# Python кэш и виртуальное окружение
+__pycache__/
+*.pyc
+venv/
+.venv/
+env/
+
+# Логи и базы данных
+*.log
+*.sqlite3
+
+# Операционная система
+.DS_Store
+Thumbs.db
+
+# CrewAI specific (если есть локальный кэш)
+.crewai/
