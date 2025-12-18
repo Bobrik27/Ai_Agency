@@ -15,6 +15,53 @@ env/
 
 # Операционная система
 .DS_Store
+# Environment variables containing sensitive data
+.env
+.env.local
+.env.dev
+.env.production
+
+# Configuration files with sensitive data
+config/
+configs/
+*.config
+*.conf
+
+# Credentials and keys
+*.key
+*.pem
+*.crt
+*.cert
+*.secret
+secrets/
+credentials/
+*.token
+*.passwd
+*.password
+
+# API keys and authentication files
+*API_KEY*
+*api_key*
+*KEY*
+*_KEY
+*key*
+
+# Proxy authentication files
+*proxy*
+*Proxy*
+
+# Log files that might contain sensitive data
+*.log
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Backup files
+*.bak
+*.backup
+*~
 Thumbs.db
 
 # CrewAI specific (если есть локальный кэш)
