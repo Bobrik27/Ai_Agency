@@ -20,7 +20,7 @@ if sys.platform.startswith('win'):
 
 from crewai import Agent, Task, Crew, Process, LLM
 # ИМПОРТ ИНСТРУМЕНТОВ
-from crewai_tools import SerperDevTool
+from crewai_tools import SerperDevTool, FileWriterTool
 
 load_dotenv()
 
@@ -48,18 +48,17 @@ def get_llm(model_name: str):
 
 # --- ФАБРИКА ИНСТРУМЕНТОВ ---
 def get_tools_objects(tool_names: List[str]) -> List[Any]:
-    """Превращает список строк ['web_search'] в реальные объекты инструментов."""
-    if not tool_names:
-        return []
+    if not tool_names: return []
     
     tools = []
-    # Инициализируем инструменты (Serper требует API Key в .env)
-    search_tool = SerperDevTool()
     
-    # Словарь доступных инструментов
+    # Инициализация инструментов
+    search_tool = SerperDevTool()
+    file_writer = FileWriterTool() # Позволяет агентам создавать файлы
+    
     tool_registry = {
         "web_search": search_tool,
-        # Сюда потом добавим "file_read", "database" и т.д.
+        "file_write": file_writer, 
     }
     
     for name in tool_names:
@@ -77,7 +76,6 @@ def create_agents(agents_config: Dict[str, Any]) -> Dict[str, Agent]:
     for key, config in iterator:
         if not config: continue
         
-        # Загружаем инструменты из конфига
         tool_names = config.get('tools', [])
         agent_tools = get_tools_objects(tool_names)
         
@@ -88,7 +86,7 @@ def create_agents(agents_config: Dict[str, Any]) -> Dict[str, Agent]:
             verbose=config.get('verbose', True),
             allow_delegation=False,
             llm=get_llm(config.get('llm')),
-            tools=agent_tools # <-- ПЕРЕДАЕМ ИНСТРУМЕНТЫ
+            tools=agent_tools
         )
         agents_map[key] = agent
         if 'name' in config: agents_map[config['name']] = agent
@@ -157,8 +155,13 @@ def select_flow() -> str:
 
 def get_user_input(flow_name: str) -> Dict[str, str]:
     print(f"\n📝 ВВОД ДАННЫХ ДЛЯ: {flow_name}")
-    print("Введи описание бизнеса. Обязательно укажи ГОРОД и НИШУ (чтобы поиск сработал).")
-    print("Пример: Салон красоты 'Миледи' в Самаре. Нет клиентов из соцсетей.")
+    
+    if flow_name == "bot_dev_flow":
+        print("Опиши функционал бота (какие кнопки, какая логика).")
+        print("Пример: Бот-визитка для фотографа. Кнопки: Портфолио, Цены, Записаться.")
+    else:
+        print("Введи описание бизнеса, город и нишу.")
+        
     print("Нажми Enter, затем Ctrl+Z (Win) или Ctrl+D (Lin) для завершения.\n")
     
     lines = []
@@ -170,10 +173,7 @@ def get_user_input(flow_name: str) -> Dict[str, str]:
         pass
     
     text = "\n".join(lines)
-    
-    if not text.strip():
-        return {"business_description": "Завод бетонных изделий в Москве. Конкуренция высокая."}
-        
+    if not text.strip(): return {"business_description": "Тестовый ввод."}
     return {"business_description": text}
 
 def main():
