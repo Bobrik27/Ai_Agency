@@ -19,6 +19,8 @@ if sys.platform.startswith('win'):
             except AttributeError: setattr(signal, name, 1)
 
 from crewai import Agent, Task, Crew, Process, LLM
+# ИМПОРТ ИНСТРУМЕНТОВ
+from crewai_tools import SerperDevTool
 
 load_dotenv()
 
@@ -44,12 +46,41 @@ def get_llm(model_name: str):
     
     return LLM(model=model_name, api_key=api_key)
 
+# --- ФАБРИКА ИНСТРУМЕНТОВ ---
+def get_tools_objects(tool_names: List[str]) -> List[Any]:
+    """Превращает список строк ['web_search'] в реальные объекты инструментов."""
+    if not tool_names:
+        return []
+    
+    tools = []
+    # Инициализируем инструменты (Serper требует API Key в .env)
+    search_tool = SerperDevTool()
+    
+    # Словарь доступных инструментов
+    tool_registry = {
+        "web_search": search_tool,
+        # Сюда потом добавим "file_read", "database" и т.д.
+    }
+    
+    for name in tool_names:
+        tool = tool_registry.get(name)
+        if tool:
+            tools.append(tool)
+        else:
+            print(f"    ⚠️ WARNING: Tool '{name}' not found in registry.")
+    return tools
+
 def create_agents(agents_config: Dict[str, Any]) -> Dict[str, Agent]:
     agents_map = {}
     iterator = agents_config.items() if isinstance(agents_config, dict) else {item.get('role', f'a{i}'): item for i, item in enumerate(agents_config)}.items()
 
     for key, config in iterator:
         if not config: continue
+        
+        # Загружаем инструменты из конфига
+        tool_names = config.get('tools', [])
+        agent_tools = get_tools_objects(tool_names)
+        
         agent = Agent(
             role=config.get('role'),
             goal=config.get('goal'),
@@ -57,7 +88,7 @@ def create_agents(agents_config: Dict[str, Any]) -> Dict[str, Agent]:
             verbose=config.get('verbose', True),
             allow_delegation=False,
             llm=get_llm(config.get('llm')),
-            tools=[]
+            tools=agent_tools # <-- ПЕРЕДАЕМ ИНСТРУМЕНТЫ
         )
         agents_map[key] = agent
         if 'name' in config: agents_map[config['name']] = agent
@@ -87,7 +118,7 @@ def create_tasks(tasks_config: Dict[str, Any], agents_map: Dict[str, Agent]) -> 
 
         task = Task(
             name=config.get('name', key),
-            description=config.get('description'), # CrewAI сам подставит {variables} при kickoff
+            description=config.get('description'),
             expected_output=config.get('expected_output'),
             agent=assigned_agent,
             async_execution=config.get('async_execution', False)
@@ -125,12 +156,11 @@ def select_flow() -> str:
         except KeyboardInterrupt: sys.exit(0)
 
 def get_user_input(flow_name: str) -> Dict[str, str]:
-    """Запрашивает входные данные в зависимости от сценария."""
     print(f"\n📝 ВВОД ДАННЫХ ДЛЯ: {flow_name}")
-    print("Введи описание бизнеса и проблемы (можно многострочный текст).")
-    print("Нажми Enter, затем Ctrl+Z (Windows) или Ctrl+D (Linux) для завершения ввода.\n")
+    print("Введи описание бизнеса. Обязательно укажи ГОРОД и НИШУ (чтобы поиск сработал).")
+    print("Пример: Салон красоты 'Миледи' в Самаре. Нет клиентов из соцсетей.")
+    print("Нажми Enter, затем Ctrl+Z (Win) или Ctrl+D (Lin) для завершения.\n")
     
-    # Чтение многострочного ввода
     lines = []
     try:
         while True:
@@ -142,8 +172,7 @@ def get_user_input(flow_name: str) -> Dict[str, str]:
     text = "\n".join(lines)
     
     if not text.strip():
-        print("❌ Ошибка: Пустой ввод. Использую тестовые данные.")
-        return {"business_description": "Тестовый завод по производству бетона. Теряем заявки."}
+        return {"business_description": "Завод бетонных изделий в Москве. Конкуренция высокая."}
         
     return {"business_description": text}
 
@@ -159,7 +188,6 @@ def main():
         agents_map = create_agents(agents_yaml)
         tasks = create_tasks(tasks_yaml, agents_map)
         
-        # 1. Получаем данные от пользователя
         inputs = get_user_input(flow_name)
         
         crew = Crew(
@@ -170,9 +198,7 @@ def main():
         )
         
         print("\n🔥 Kicking off the Crew...")
-        # 2. Передаем данные в inputs (CrewAI сам заменит {business_description} в задачах)
         result = crew.kickoff(inputs=inputs)
-        
         save_result(flow_name, result)
 
     except Exception as e:
